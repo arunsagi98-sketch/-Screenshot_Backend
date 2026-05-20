@@ -14,3 +14,7 @@ class ScreenshotResult(Base):
     ads_found = Column(Integer, nullable=True)
     matches_found = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    matched_creative_name = Column(String, nullable=True)
+    matched_creative_size = Column(String, nullable=True)
+    device = Column(String, default="Desktop")
+

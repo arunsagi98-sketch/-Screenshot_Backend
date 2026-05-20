@@ -3,9 +3,13 @@ import sys
 import uvicorn
 
 if __name__ == "__main__":
-    # Force the correct Windows loop for Playwright
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    # Proactor is required on older Python for Playwright subprocesses on Windows.
+    # From Python 3.14 onward, overriding the asyncio policy is deprecated; use the default.
+    if sys.platform == "win32" and sys.version_info < (3, 14):
+        try:
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        except Exception:
+            pass
     
     # Disable reload=True on Windows to prevent loop conflicts
     uvicorn.run(

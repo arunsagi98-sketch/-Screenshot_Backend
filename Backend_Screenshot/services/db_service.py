@@ -1,7 +1,16 @@
 from database.db import SessionLocal
 from models.screenshot import ScreenshotResult
 
-def save_screenshot_result(website: str, image_path: str, status: str, ads_found: int = 0, matches_found: int = 0):
+def save_screenshot_result(
+    website: str, 
+    image_path: str, 
+    status: str, 
+    ads_found: int = 0, 
+    matches_found: int = 0,
+    matched_creative_name: str = None,
+    matched_creative_size: str = None,
+    device: str = "Desktop"
+):
     """Saves the result of a screenshot process to the database."""
     db = SessionLocal()
     try:
@@ -10,7 +19,10 @@ def save_screenshot_result(website: str, image_path: str, status: str, ads_found
             screenshot_path=image_path,
             status=status,
             ads_found=ads_found,
-            matches_found=matches_found
+            matches_found=matches_found,
+            matched_creative_name=matched_creative_name,
+            matched_creative_size=matched_creative_size,
+            device=device
         )
         db.add(new_result)
         db.commit()
@@ -38,6 +50,9 @@ def get_all_results():
                 "status": r.status,
                 "ads_found": r.ads_found,
                 "matches_found": r.matches_found,
+                "matched_creative_name": r.matched_creative_name,
+                "matched_creative_size": r.matched_creative_size,
+                "device": r.device,
                 "created_at": r.created_at.isoformat()
             }
             for r in results

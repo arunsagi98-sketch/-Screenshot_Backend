@@ -8,11 +8,13 @@ from playwright.async_api import async_playwright
 from services.ad_detector import detect_ad_slots
 from services.image_utils import get_local_creatives, find_best_match
 from services.db_service import save_screenshot_result
+from services.ppt_style_extractor import get_ppt_styles
 
 # Windows ProactorEventLoop is required for Playwright subprocesses
 if sys.platform == "win32":
     try:
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        if sys.version_info < (3, 14):
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     except Exception:
         pass
 
@@ -159,6 +161,8 @@ async def process_single_url(context, url, creatives):
         # Detection & Overlay
         ad_slots = await detect_ad_slots(page)
         matches_count = 0
+        matched_name = None
+        matched_size = None
         
         if ad_slots and creatives:
             for slot in ad_slots:
@@ -166,6 +170,8 @@ async def process_single_url(context, url, creatives):
                 if best_creative:
                     await apply_creative_overlay(page, slot, best_creative)
                     matches_count += 1
+                    matched_name = best_creative["name"]
+                    matched_size = f"{best_creative['width']}x{best_creative['height']}"
                     
                     # Remove the creative from the pool so it isn't reused on other sites
                     creatives.remove(best_creative)
@@ -180,7 +186,53 @@ async def process_single_url(context, url, creatives):
         if matches_count > 0:
             await page.wait_for_timeout(1000)
             
-            # --- INJECT MOCK ADDRESS BAR ---
+            # Get PPT styles for text overlay
+            ppt_styles = None
+            try:
+                ppt_styles = get_ppt_styles()
+            except Exception as e:
+                print(f"[STYLE ERROR] Could not get PPT styles: {e}")
+            
+            # Set default styles if PPT extraction failed or no explicit colors found
+            font_name = "Segoe UI"
+            title_size_px = 24  # 30pt ≈ 40px, but we'll scale down for UI
+            text_size_px = 16   # 18pt ≈ 24px, scaled down
+            title_bold = True
+            text_bold = True
+            title_color = "#000000"
+            text_color = "#000000"
+            bg_color = "#FFFFFF"
+            border_color = "#CCCCCC"
+            url_bg_color = "#FFFFFF"
+            url_border_color = "#CCCCCC"
+            url_text_color = "#000000"
+            icon_color = "#000000"
+            
+            if ppt_styles:
+                font_name = ppt_styles.get("font_name", "Segoe UI")
+                # Convert pt to px (approximately: px = pt * 1.333)
+                title_size_px = max(12, int(ppt_styles.get("title_size", 30) * 1.333 * 0.6))  # Scaled down for UI
+                text_size_px = max(12, int(ppt_styles.get("text_size", 18) * 1.333 * 0.6))    # Scaled down for UI
+                title_bold = ppt_styles.get("title_bold", True)
+                text_bold = ppt_styles.get("text_bold", True)
+                
+                # Convert color hex to CSS format
+                title_hex = ppt_styles.get("title_color", "000000")
+                text_hex = ppt_styles.get("text_color", "000000")
+                bg_hex = ppt_styles.get("background_color", "FFFFFF")
+                
+                title_color = f"#{title_hex}"
+                text_color = f"#{text_hex}"
+                bg_color = f"#{bg_hex}"
+                
+                # Preserve the PPT theme exactly. Do not auto-retheme white backgrounds.
+                border_color = bg_color
+                url_bg_color = "#FFFFFF"
+                url_border_color = "#CCCCCC"
+                url_text_color = text_color
+                icon_color = text_color
+            
+            # --- INJECT MOCK ADDRESS BAR WITH PPT STYLES ---
             await page.evaluate(f"""
                 () => {{
                     const bar = document.createElement('div');
@@ -190,36 +242,37 @@ async def process_single_url(context, url, creatives):
                     bar.style.left = '0';
                     bar.style.width = '100%';
                     bar.style.height = '48px';
-                    bar.style.backgroundColor = '#F3F3F3';
-                    bar.style.borderBottom = '1px solid #CCCCCC';
+                    bar.style.backgroundColor = '{bg_color}';
+                    bar.style.borderBottom = '1px solid {border_color}';
                     bar.style.zIndex = '2147483647';
                     bar.style.display = 'flex';
                     bar.style.alignItems = 'center';
                     bar.style.padding = '0 12px';
                     bar.style.boxSizing = 'border-box';
-                    bar.style.fontFamily = 'Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif';
+                    bar.style.fontFamily = '{font_name}', -apple-system, BlinkMacSystemFont, Roboto, sans-serif';
                     
                     const nav = document.createElement('div');
                     nav.style.display = 'flex';
                     nav.style.gap = '15px';
                     nav.style.marginRight = '15px';
-                    nav.style.color = '#5D5D5D';
-                    nav.style.fontSize = '18px';
+                    nav.style.color = '{icon_color}';
+                    nav.style.fontSize = '{text_size_px}px';
+                    nav.style.fontWeight = '{ "bold" if title_bold else "normal" }';
                     nav.innerHTML = '&#8592; &nbsp;&#8594; &nbsp;&#10227;'; 
                     
                     const urlContainer = document.createElement('div');
                     urlContainer.style.flex = '1';
-                    urlContainer.style.backgroundColor = '#FFFFFF';
+                    urlContainer.style.backgroundColor = '{url_bg_color}';
                     urlContainer.style.borderRadius = '24px';
                     urlContainer.style.height = '32px';
                     urlContainer.style.display = 'flex';
                     urlContainer.style.alignItems = 'center';
                     urlContainer.style.padding = '0 12px';
                     urlContainer.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
-                    urlContainer.style.border = '1px solid #E5E5E5';
+                    urlContainer.style.border = '1px solid {url_border_color}';
                     
-                    urlContainer.innerHTML = '<span style="font-size:12px; margin-right:8px; color:#5D5D5D;">&#128274;</span>' + 
-                                             '<span style="color:#1A1A1A; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{url}</span>';
+                    urlContainer.innerHTML = '<span style="font-size:{max(10, text_size_px - 4)}px; margin-right:8px; color:{icon_color};">&#128274;</span>' + 
+                                              '<span style="color:{url_text_color}; font-size:{text_size_px}px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{url}</span>';
                     
                     bar.appendChild(nav);
                     bar.appendChild(urlContainer);
@@ -237,6 +290,10 @@ async def process_single_url(context, url, creatives):
             final_image_path = ""
             print(f"[SKIP] No matches found for {url}, skipping screenshot.")
         
+        # Detect device type
+        viewport = page.viewport_size
+        device_type = "Mobile" if viewport and viewport.get("width", 1440) < 600 else "Desktop"
+
         # Save to DB
         await asyncio.to_thread(
             save_screenshot_result,
@@ -244,14 +301,23 @@ async def process_single_url(context, url, creatives):
             image_path=final_image_path,
             status="success",
             ads_found=len(ad_slots) if ad_slots else 0,
-            matches_found=matches_count
+            matches_found=matches_count,
+            matched_creative_name=matched_name,
+            matched_creative_size=matched_size,
+            device=device_type
         )
         
         return {"url": url, "status": "success", "matches": matches_count}
 
     except Exception as e:
         print(f"[SCAN FAILED] {url}: {e}")
-        await asyncio.to_thread(save_screenshot_result, website=url, image_path="", status="failed")
+        await asyncio.to_thread(
+            save_screenshot_result, 
+            website=url, 
+            image_path="", 
+            status="failed",
+            device="Desktop"
+        )
         return {"url": url, "status": "failed"}
     finally:
         await page.close()
