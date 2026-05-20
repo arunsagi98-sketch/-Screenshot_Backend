@@ -578,3 +578,85 @@ textarea {
     justify-content: flex-end;
     margin-top: 0.5rem;
 }
+
+/* Live Progress Styles */
+.console-log::-webkit-scrollbar {
+    width: 6px;
+}
+.console-log::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.1);
+}
+.console-log::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15);
+    border-radius: 3px;
+}
+.progress-creative-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+.progress-creative-item.success {
+    border-color: rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.03);
+}
+.progress-creative-item.failed {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.03);
+}
+.progress-creative-item.active {
+    border-color: rgba(59, 130, 246, 0.4);
+    background: rgba(59, 130, 246, 0.03);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.1);
+}
+.creative-name-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.creative-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 280px;
+}
+.creative-meta {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+.creative-status-tag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.creative-status-tag.matched { color: var(--success); }
+.creative-status-tag.failed { color: var(--danger); }
+.creative-status-tag.active { color: var(--accent-color); }
+.creative-status-tag.pending { color: var(--text-secondary); }
+
+.log-item {
+    margin: 2px 0;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.log-item.success { color: var(--success); }
+.log-item.error { color: var(--danger); }
+.log-item.info { color: #3b82f6; }
+.log-item.warning { color: #f59e0b; }
+.log-item.bullet { color: #94a3b8; }
+
+.delete-creative-btn:hover {
+    color: var(--danger) !important;
+    transform: scale(1.15);
+}
